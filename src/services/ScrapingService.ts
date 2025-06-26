@@ -1,41 +1,55 @@
+
 import { AnalysisData } from '@/pages/Index';
 
 export class ScrapingService {
   static validateApiKeys(): boolean {
-    const scraperApiKey = localStorage.getItem('scraper_api_key');
-    const openaiKey = localStorage.getItem('openai_api_key');
-    return !!(scraperApiKey && openaiKey);
+    const firecrawlKey = localStorage.getItem('firecrawl_api_key');
+    const geminiKey = localStorage.getItem('gemini_api_key');
+    return !!(firecrawlKey && geminiKey);
   }
 
   static async scrapeWebsite(url: string): Promise<{ success: boolean; content?: string; blogContent?: string; error?: string }> {
-    const apiKey = localStorage.getItem('scraper_api_key');
+    const apiKey = localStorage.getItem('firecrawl_api_key');
     
     if (!apiKey) {
-      return { success: false, error: 'ScraperAPI key not found' };
+      return { success: false, error: 'Firecrawl API key not found' };
     }
 
     try {
       console.log('Starting scrape for URL:', url);
       
-      // Use HTTPS for ScraperAPI endpoint
-      const scraperUrl = `https://api.scraperapi.com/v1?api_key=${apiKey}&url=${encodeURIComponent(url)}&render=true&format=text`;
-      
-      const mainResponse = await fetch(scraperUrl, {
-        method: 'GET',
+      // First, scrape the main page
+      const mainResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
         headers: {
-          'Accept': 'text/plain',
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          url: url,
+          formats: ['markdown'],
+          includeTags: ['title', 'meta', 'h1', 'h2', 'h3', 'p', 'a', 'div', 'span'],
+          excludeTags: ['script', 'style', 'nav', 'footer', 'header'],
+          waitFor: 3000,
+          timeout: 30000,
+        }),
       });
 
       if (!mainResponse.ok) {
-        const errorText = await mainResponse.text().catch(() => 'Unknown error');
-        throw new Error(`HTTP ${mainResponse.status}: ${errorText}`);
+        const errorData = await mainResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${mainResponse.status}: ${mainResponse.statusText}`);
       }
 
-      const mainContent = await mainResponse.text();
+      const mainData = await mainResponse.json();
       
-      if (!mainContent || mainContent.length < 100) {
-        throw new Error('No content extracted from the website or content too short');
+      if (!mainData.success) {
+        throw new Error(mainData.error || 'Scraping failed');
+      }
+
+      const mainContent = mainData.data?.markdown || '';
+      
+      if (!mainContent) {
+        throw new Error('No content extracted from the website');
       }
 
       console.log('Main page scraping successful, content length:', mainContent.length);
@@ -49,21 +63,27 @@ export class ScrapingService {
         
         // Try to scrape the first blog URL found
         try {
-          const blogScraperUrl = `https://api.scraperapi.com/v1?api_key=${apiKey}&url=${encodeURIComponent(blogUrls[0])}&render=true&format=text`;
-          
-          const blogResponse = await fetch(blogScraperUrl, {
-            method: 'GET',
+          const blogResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
             headers: {
-              'Accept': 'text/plain',
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              url: blogUrls[0],
+              formats: ['markdown'],
+              includeTags: ['title', 'meta', 'h1', 'h2', 'h3', 'p', 'a', 'div', 'span', 'article'],
+              excludeTags: ['script', 'style', 'nav', 'footer', 'header'],
+              waitFor: 3000,
+              timeout: 30000,
+            }),
           });
 
           if (blogResponse.ok) {
-            blogContent = await blogResponse.text();
-            if (blogContent && blogContent.length > 100) {
+            const blogData = await blogResponse.json();
+            if (blogData.success && blogData.data?.markdown) {
+              blogContent = blogData.data.markdown;
               console.log('Blog scraping successful, content length:', blogContent.length);
-            } else {
-              blogContent = '';
             }
           }
         } catch (blogError) {
@@ -79,15 +99,6 @@ export class ScrapingService {
       
     } catch (error) {
       console.error('Scraping error:', error);
-      
-      // Check if it's a CORS or network error
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        return { 
-          success: false, 
-          error: 'Network error: Unable to connect to ScraperAPI. This might be due to browser security restrictions. Please check your API key and try again.' 
-        };
-      }
-      
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to scrape website' 
@@ -99,19 +110,24 @@ export class ScrapingService {
     const blogUrls: string[] = [];
     const domain = new URL(baseUrl).origin;
     
-    // Common blog patterns in text content
+    // Common blog patterns
     const blogPatterns = [
-      /https?:\/\/[^\s]*blog[^\s]*/gi,
-      /https?:\/\/blog\.[^\s]*/gi,
+      /\[Blog\]\((https?:\/\/[^)]+)\)/gi,
+      /\[blog\]\((https?:\/\/[^)]+)\)/gi,
+      /href="([^"]*blog[^"]*)"/gi,
+      /href="([^"]*\/blog[^"]*)"/gi,
     ];
     
-    // Extract URLs from content
-    const urlPattern = /https?:\/\/[^\s<>"']+/gi;
-    const urls = content.match(urlPattern) || [];
-    
-    urls.forEach(url => {
-      if (url.toLowerCase().includes('blog') && !blogUrls.includes(url)) {
-        blogUrls.push(url.replace(/[.,;!?]$/, '')); // Remove trailing punctuation
+    blogPatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        let url = match[1];
+        if (url.startsWith('/')) {
+          url = domain + url;
+        }
+        if (!blogUrls.includes(url)) {
+          blogUrls.push(url);
+        }
       }
     });
     
@@ -123,22 +139,23 @@ export class ScrapingService {
       });
     }
     
-    return blogUrls.slice(0, 3); // Limit to first 3 URLs
+    return blogUrls;
   }
 
   static async analyzeWithAI(content: string, blogContent?: string): Promise<{ success: boolean; analysis?: AnalysisData; error?: string }> {
-    const apiKey = localStorage.getItem('openai_api_key');
+    const apiKey = localStorage.getItem('gemini_api_key');
     
     if (!apiKey) {
-      return { success: false, error: 'OpenAI API key not found' };
+      return { success: false, error: 'Gemini API key not found' };
     }
 
     try {
-      console.log('Starting AI analysis with OpenAI...');
+      console.log('Starting AI analysis with Gemini...');
       
       const blogSection = blogContent ? `\n\nBLOG SECTION CONTENT:\n${blogContent.substring(0, 3000)}` : '';
       
-      const prompt = `You are a business analyst. Analyze the following website content and provide answers to these 4 questions in a clean JSON format:
+      const prompt = `
+You are a business analyst. Analyze the following website content and provide answers to these 4 questions in a clean JSON format:
 
 1. What is this business about?
 2. What are the core products or services offered?
@@ -148,32 +165,33 @@ export class ScrapingService {
 MAIN WEBSITE CONTENT:
 ${content.substring(0, 8000)}${blogSection}
 
-Respond ONLY with a valid JSON object in this exact format:
+Respond ONLY with a valid JSON object in this exact format (no markdown formatting, no code blocks):
 {
   "businessAbout": "Detailed description of what the business is about",
-  "coreProducts": "Detailed description of core products or services", 
+  "coreProducts": "Detailed description of core products or services",
   "targetAudience": "Detailed analysis of potential target audience",
   "blogContent": "Analysis of blog content with specific examples, titles, or topics. If blog exists but no content details available, mention the blog URL and general theme. If no blog found, state 'No blog section found'"
 }
 
 Make each response comprehensive and informative (2-3 sentences minimum). For blog content, be specific about what type of content they publish and include examples if available.`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 2000,
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 32,
+            topP: 0.95,
+            maxOutputTokens: 2000,
+          },
         }),
       });
 
@@ -184,11 +202,11 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
 
       const data = await response.json();
       
-      if (!data.choices || !data.choices[0]?.message?.content) {
-        throw new Error('Invalid response from OpenAI API');
+      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+        throw new Error('Invalid response from Gemini API');
       }
 
-      let analysisText = data.choices[0].message.content.trim();
+      let analysisText = data.candidates[0].content.parts[0].text.trim();
       console.log('Raw AI response:', analysisText);
       
       // Clean up the response - remove markdown code blocks if present

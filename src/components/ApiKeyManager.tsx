@@ -8,28 +8,28 @@ import { useToast } from '@/hooks/use-toast';
 import { Key, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 
 export const ApiKeyManager = () => {
-  const [scraperApiKey, setScraperApiKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
-  const [showScraperKey, setShowScraperKey] = useState(false);
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [firecrawlKey, setFirecrawlKey] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
+  const [showFirecrawlKey, setShowFirecrawlKey] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedScraperKey = localStorage.getItem('scraper_api_key');
-    const savedOpenaiKey = localStorage.getItem('openai_api_key');
+    const savedFirecrawlKey = localStorage.getItem('firecrawl_api_key');
+    const savedGeminiKey = localStorage.getItem('gemini_api_key');
     
-    if (savedScraperKey) setScraperApiKey(savedScraperKey);
-    if (savedOpenaiKey) setOpenaiKey(savedOpenaiKey);
+    if (savedFirecrawlKey) setFirecrawlKey(savedFirecrawlKey);
+    if (savedGeminiKey) setGeminiKey(savedGeminiKey);
     
     // Auto-expand if no keys are saved
-    if (!savedScraperKey || !savedOpenaiKey) {
+    if (!savedFirecrawlKey || !savedGeminiKey) {
       setIsExpanded(true);
     }
   }, []);
 
   const saveApiKeys = () => {
-    if (!scraperApiKey.trim() || !openaiKey.trim()) {
+    if (!firecrawlKey.trim() || !geminiKey.trim()) {
       toast({
         title: "Error",
         description: "Please enter both API keys",
@@ -38,8 +38,8 @@ export const ApiKeyManager = () => {
       return;
     }
 
-    localStorage.setItem('scraper_api_key', scraperApiKey);
-    localStorage.setItem('openai_api_key', openaiKey);
+    localStorage.setItem('firecrawl_api_key', firecrawlKey);
+    localStorage.setItem('gemini_api_key', geminiKey);
     
     toast({
       title: "Success",
@@ -50,7 +50,7 @@ export const ApiKeyManager = () => {
     setIsExpanded(false);
   };
 
-  const hasValidKeys = scraperApiKey.trim() && openaiKey.trim();
+  const hasValidKeys = firecrawlKey.trim() && geminiKey.trim();
 
   return (
     <Card className="bg-white/80 backdrop-blur-sm shadow-lg border-white/20">
@@ -84,14 +84,14 @@ export const ApiKeyManager = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                ScraperAPI Key
+                Firecrawl API Key
               </label>
               <div className="relative">
                 <Input
-                  type={showScraperKey ? "text" : "password"}
-                  value={scraperApiKey}
-                  onChange={(e) => setScraperApiKey(e.target.value)}
-                  placeholder="Your ScraperAPI key..."
+                  type={showFirecrawlKey ? "text" : "password"}
+                  value={firecrawlKey}
+                  onChange={(e) => setFirecrawlKey(e.target.value)}
+                  placeholder="fc-..."
                   className="pr-10"
                 />
                 <Button
@@ -99,29 +99,29 @@ export const ApiKeyManager = () => {
                   variant="ghost"
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowScraperKey(!showScraperKey)}
+                  onClick={() => setShowFirecrawlKey(!showFirecrawlKey)}
                 >
-                  {showScraperKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showFirecrawlKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
               <p className="text-xs text-gray-500">
                 Get your key from{' '}
-                <a href="https://www.scraperapi.com/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
-                  scraperapi.com
+                <a href="https://firecrawl.dev" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                  firecrawl.dev
                 </a>
               </p>
             </div>
             
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                OpenAI API Key
+                Google Gemini API Key
               </label>
               <div className="relative">
                 <Input
-                  type={showOpenaiKey ? "text" : "password"}
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder="sk-..."
+                  type={showGeminiKey ? "text" : "password"}
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  placeholder="AIza..."
                   className="pr-10"
                 />
                 <Button
@@ -129,15 +129,15 @@ export const ApiKeyManager = () => {
                   variant="ghost"
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                  onClick={() => setShowGeminiKey(!showGeminiKey)}
                 >
-                  {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
               <p className="text-xs text-gray-500">
                 Get your key from{' '}
-                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
-                  OpenAI Platform
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                  Google AI Studio
                 </a>
               </p>
             </div>
