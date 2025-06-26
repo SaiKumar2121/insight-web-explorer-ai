@@ -49,7 +49,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
     try {
       // Step 1: Validate API keys
       setCurrentStep('Validating API keys...');
-      setProgress(15);
+      setProgress(10);
       
       const hasValidKeys = ScrapingService.validateApiKeys();
       if (!hasValidKeys) {
@@ -61,9 +61,9 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
         return;
       }
 
-      // Step 2: Scrape website
+      // Step 2: Scrape main website
       setCurrentStep('Extracting website content...');
-      setProgress(35);
+      setProgress(25);
       
       console.log('Attempting to scrape:', normalizedUrl);
       const scrapedData = await ScrapingService.scrapeWebsite(normalizedUrl);
@@ -74,17 +74,30 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
 
       console.log('Content extracted, length:', scrapedData.content?.length);
 
-      // Step 3: Analyze with AI
+      // Step 3: Scrape blog content (if detected)
+      if (scrapedData.blogContent) {
+        setCurrentStep('Analyzing blog content...');
+        setProgress(50);
+        console.log('Blog content found, length:', scrapedData.blogContent.length);
+      } else {
+        setCurrentStep('No blog detected, continuing with main content...');
+        setProgress(50);
+      }
+
+      // Step 4: Analyze with AI
       setCurrentStep('Analyzing content with AI...');
-      setProgress(70);
+      setProgress(75);
       
-      const analysisResult = await ScrapingService.analyzeWithAI(scrapedData.content!);
+      const analysisResult = await ScrapingService.analyzeWithAI(
+        scrapedData.content!, 
+        scrapedData.blogContent
+      );
       
       if (!analysisResult.success) {
         throw new Error(analysisResult.error || 'Failed to analyze content');
       }
 
-      // Step 4: Complete
+      // Step 5: Complete
       setCurrentStep('Analysis complete!');
       setProgress(100);
       
@@ -122,7 +135,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
           Website Analyzer
         </CardTitle>
         <p className="text-sm text-gray-600 mt-2">
-          Enter any website URL to get AI-powered business insights
+          Enter any website URL to get AI-powered business insights including blog analysis
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -152,7 +165,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
             ) : (
               <>
                 <Search className="w-5 h-5 mr-2" />
-                Analyze Website
+                Analyze Website & Blog
               </>
             )}
           </Button>
@@ -166,10 +179,17 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
             </div>
             <Progress value={progress} className="h-2" />
             
-            {currentStep === 'Extracting website content...' && (
+            {currentStep.includes('Extracting website content') && (
               <div className="flex items-center gap-2 text-xs text-gray-600">
                 <AlertCircle className="w-4 h-4" />
-                This may take 10-30 seconds depending on website size
+                Scanning for blog sections and main content...
+              </div>
+            )}
+            
+            {currentStep.includes('blog') && (
+              <div className="flex items-center gap-2 text-xs text-blue-600">
+                <AlertCircle className="w-4 h-4" />
+                Found blog section, extracting content for detailed analysis
               </div>
             )}
           </div>
