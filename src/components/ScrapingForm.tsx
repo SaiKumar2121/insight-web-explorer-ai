@@ -55,7 +55,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
       if (!hasValidKeys) {
         toast({
           title: "API Keys Required",
-          description: "Please configure your Firecrawl and Gemini API keys above",
+          description: "Please configure your ScraperAPI and OpenAI API keys above",
           variant: "destructive",
         });
         return;
@@ -182,7 +182,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
             {currentStep.includes('Extracting website content') && (
               <div className="flex items-center gap-2 text-xs text-gray-600">
                 <AlertCircle className="w-4 h-4" />
-                Scanning for blog sections and main content...
+                Using ScraperAPI to extract content and detect blog sections...
               </div>
             )}
             
