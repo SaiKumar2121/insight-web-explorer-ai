@@ -1,3 +1,4 @@
+
 import { AnalysisData } from '@/pages/Index';
 
 export class ScrapingService {
@@ -25,10 +26,11 @@ export class ScrapingService {
         },
         body: JSON.stringify({
           url: url,
-          formats: ['markdown', 'html'],
-          includeTags: ['title', 'meta', 'h1', 'h2', 'h3', 'p', 'a', 'div'],
-          excludeTags: ['script', 'style', 'nav', 'footer'],
-          waitFor: 2000,
+          formats: ['markdown'],
+          includeTags: ['title', 'meta', 'h1', 'h2', 'h3', 'p', 'a', 'div', 'span'],
+          excludeTags: ['script', 'style', 'nav', 'footer', 'header'],
+          waitFor: 3000,
+          timeout: 30000,
         }),
       });
 
@@ -43,7 +45,7 @@ export class ScrapingService {
         throw new Error(data.error || 'Scraping failed');
       }
 
-      const content = data.data?.markdown || data.data?.html || '';
+      const content = data.data?.markdown || '';
       
       if (!content) {
         throw new Error('No content extracted from the website');
@@ -72,7 +74,7 @@ export class ScrapingService {
       console.log('Starting AI analysis with Gemini...');
       
       const prompt = `
-Analyze the following website content and provide detailed answers to these 4 questions in JSON format:
+You are a business analyst. Analyze the following website content and provide answers to these 4 questions in a clean JSON format:
 
 1. What is this business about?
 2. What are the core products or services offered?
@@ -80,9 +82,9 @@ Analyze the following website content and provide detailed answers to these 4 qu
 4. Do they have a blog page, if yes what sort of content they are publishing?
 
 Website Content:
-${content.substring(0, 8000)} // Limit content to avoid token limits
+${content.substring(0, 10000)}
 
-Please respond with a JSON object in this exact format:
+Respond ONLY with a valid JSON object in this exact format (no markdown formatting, no code blocks):
 {
   "businessAbout": "Detailed description of what the business is about",
   "coreProducts": "Detailed description of core products or services",
@@ -90,7 +92,7 @@ Please respond with a JSON object in this exact format:
   "blogContent": "Analysis of blog content or 'No blog section found' if none exists"
 }
 
-Make sure each response is comprehensive and informative (2-3 sentences minimum).`;
+Make each response comprehensive and informative (2-3 sentences minimum).`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -104,10 +106,10 @@ Make sure each response is comprehensive and informative (2-3 sentences minimum)
             }]
           }],
           generationConfig: {
-            temperature: 0.3,
-            topK: 40,
+            temperature: 0.1,
+            topK: 32,
             topP: 0.95,
-            maxOutputTokens: 1500,
+            maxOutputTokens: 2000,
           },
         }),
       });
@@ -123,7 +125,11 @@ Make sure each response is comprehensive and informative (2-3 sentences minimum)
         throw new Error('Invalid response from Gemini API');
       }
 
-      const analysisText = data.candidates[0].content.parts[0].text.trim();
+      let analysisText = data.candidates[0].content.parts[0].text.trim();
+      console.log('Raw AI response:', analysisText);
+      
+      // Clean up the response - remove markdown code blocks if present
+      analysisText = analysisText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
       
       try {
         // Try to parse as JSON
@@ -139,12 +145,14 @@ Make sure each response is comprehensive and informative (2-3 sentences minimum)
         
       } catch (parseError) {
         console.error('JSON parsing error:', parseError);
-        // Fallback: try to extract information manually
+        console.log('Cleaned text that failed to parse:', analysisText);
+        
+        // Fallback: create a structured analysis from the text
         const fallbackAnalysis: AnalysisData = {
-          businessAbout: this.extractSection(analysisText, 'business about') || 'Unable to determine business focus from the available content.',
-          coreProducts: this.extractSection(analysisText, 'products or services') || 'Unable to identify specific products or services from the available content.',
-          targetAudience: this.extractSection(analysisText, 'target audience') || 'Unable to determine target audience from the available content.',
-          blogContent: this.extractSection(analysisText, 'blog') || 'No blog section found on the website.',
+          businessAbout: this.extractInfo(analysisText, ['business', 'company', 'about']) || 'Based on the website content, this appears to be a business or organization, but specific details about their focus could not be clearly determined.',
+          coreProducts: this.extractInfo(analysisText, ['product', 'service', 'offer']) || 'The specific products or services offered by this business could not be clearly identified from the available content.',
+          targetAudience: this.extractInfo(analysisText, ['audience', 'customer', 'target']) || 'The target audience for this business could not be clearly determined from the available information.',
+          blogContent: this.extractInfo(analysisText, ['blog', 'content', 'article']) || 'No clear information about blog content or publishing activity was found on the website.',
         };
         
         return { success: true, analysis: fallbackAnalysis };
@@ -159,26 +167,20 @@ Make sure each response is comprehensive and informative (2-3 sentences minimum)
     }
   }
 
-  private static extractSection(text: string, keyword: string): string | null {
-    const lines = text.split('\n');
-    let foundSection = false;
-    let result = '';
+  private static extractInfo(text: string, keywords: string[]): string | null {
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     
-    for (const line of lines) {
-      if (line.toLowerCase().includes(keyword)) {
-        foundSection = true;
-        result = line;
-        continue;
-      }
-      
-      if (foundSection && line.trim()) {
-        if (line.includes(':') && !result.includes(':')) {
-          break;
-        }
-        result += ' ' + line;
+    for (const keyword of keywords) {
+      const matchingSentence = sentences.find(sentence => 
+        sentence.toLowerCase().includes(keyword.toLowerCase())
+      );
+      if (matchingSentence) {
+        return matchingSentence.trim() + '.';
       }
     }
     
-    return result.trim() || null;
+    // If no specific keyword match, return the first substantial sentence
+    const substantialSentence = sentences.find(s => s.trim().length > 50);
+    return substantialSentence ? substantialSentence.trim() + '.' : null;
   }
 }

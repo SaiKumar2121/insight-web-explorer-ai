@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Globe, Loader2, Search } from 'lucide-react';
+import { Globe, Loader2, Search, AlertCircle } from 'lucide-react';
 import { ScrapingService } from '@/services/ScrapingService';
 import { AnalysisData } from '@/pages/Index';
 
@@ -21,6 +21,14 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
   const [currentStep, setCurrentStep] = useState('');
   const { toast } = useToast();
 
+  const normalizeUrl = (inputUrl: string): string => {
+    let normalized = inputUrl.trim();
+    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+      normalized = 'https://' + normalized;
+    }
+    return normalized;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -33,6 +41,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
       return;
     }
 
+    const normalizedUrl = normalizeUrl(url);
     setIsLoading(true);
     setProgress(0);
     setCurrentStep('Initializing...');
@@ -40,33 +49,36 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
     try {
       // Step 1: Validate API keys
       setCurrentStep('Validating API keys...');
-      setProgress(20);
+      setProgress(15);
       
       const hasValidKeys = ScrapingService.validateApiKeys();
       if (!hasValidKeys) {
         toast({
           title: "API Keys Required",
-          description: "Please configure your Firecrawl and OpenAI API keys",
+          description: "Please configure your Firecrawl and Gemini API keys above",
           variant: "destructive",
         });
         return;
       }
 
       // Step 2: Scrape website
-      setCurrentStep('Scraping website content...');
-      setProgress(40);
+      setCurrentStep('Extracting website content...');
+      setProgress(35);
       
-      const scrapedData = await ScrapingService.scrapeWebsite(url);
+      console.log('Attempting to scrape:', normalizedUrl);
+      const scrapedData = await ScrapingService.scrapeWebsite(normalizedUrl);
       
       if (!scrapedData.success) {
-        throw new Error(scrapedData.error || 'Failed to scrape website');
+        throw new Error(scrapedData.error || 'Failed to extract website content');
       }
+
+      console.log('Content extracted, length:', scrapedData.content?.length);
 
       // Step 3: Analyze with AI
       setCurrentStep('Analyzing content with AI...');
       setProgress(70);
       
-      const analysisResult = await ScrapingService.analyzeWithAI(scrapedData.content);
+      const analysisResult = await ScrapingService.analyzeWithAI(scrapedData.content!);
       
       if (!analysisResult.success) {
         throw new Error(analysisResult.error || 'Failed to analyze content');
@@ -76,7 +88,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
       setCurrentStep('Analysis complete!');
       setProgress(100);
       
-      onAnalysisComplete(analysisResult.analysis);
+      onAnalysisComplete(analysisResult.analysis!);
       
       toast({
         title: "Success",
@@ -86,15 +98,19 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
 
     } catch (error) {
       console.error('Analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to analyze website";
+      
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to analyze website",
+        title: "Analysis Failed",
+        description: errorMessage,
         variant: "destructive",
+        duration: 5000,
       });
+      
+      setCurrentStep('');
     } finally {
       setIsLoading(false);
       setProgress(0);
-      setCurrentStep('');
     }
   };
 
@@ -105,16 +121,19 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
           <Search className="w-6 h-6 text-purple-600" />
           Website Analyzer
         </CardTitle>
+        <p className="text-sm text-gray-600 mt-2">
+          Enter any website URL to get AI-powered business insights
+        </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <Input
-              type="url"
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter website URL (e.g., https://example.com)"
+              placeholder="example.com or https://example.com"
               className="pl-12 h-12 text-lg border-2 border-gray-200 focus:border-purple-500 transition-colors"
               disabled={isLoading}
             />
@@ -146,6 +165,13 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
               <span className="text-sm text-gray-500">{progress}%</span>
             </div>
             <Progress value={progress} className="h-2" />
+            
+            {currentStep === 'Extracting website content...' && (
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <AlertCircle className="w-4 h-4" />
+                This may take 10-30 seconds depending on website size
+              </div>
+            )}
           </div>
         )}
       </CardContent>
