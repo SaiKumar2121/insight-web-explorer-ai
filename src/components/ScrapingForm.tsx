@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,10 +54,13 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
       if (!hasValidKeys) {
         toast({
           title: "API Keys Required",
-          description: "Please configure your Firecrawl and Gemini API keys above",
+          // --- THIS IS THE CORRECTED LINE ---
+          description: "Please configure your Firecrawl and OpenAI API keys above",
           variant: "destructive",
         });
-        return;
+        // We were returning inside the if block, which was stopping the function.
+        // It's better to throw an error to be caught by the catch block for consistent error handling.
+        throw new Error("API Keys Required");
       }
 
       // Step 2: Scrape main website
@@ -113,12 +115,15 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
       console.error('Analysis error:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to analyze website";
       
-      toast({
-        title: "Analysis Failed",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 5000,
-      });
+      // Don't show a toast if it's the API key error, as it's already been shown.
+      if(errorMessage !== "API Keys Required") {
+        toast({
+          title: "Analysis Failed",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
       
       setCurrentStep('');
     } finally {
@@ -138,7 +143,7 @@ export const ScrapingForm = ({ onAnalysisComplete, isLoading, setIsLoading }: Sc
           Enter any website URL to get AI-powered business insights including blog analysis
         </p>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />

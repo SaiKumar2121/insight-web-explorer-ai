@@ -1,11 +1,13 @@
+// src/services/ScrapingService.ts
 
 import { AnalysisData } from '@/pages/Index';
 
 export class ScrapingService {
+  // 1. UPDATED: Validate for 'openai_api_key'
   static validateApiKeys(): boolean {
     const firecrawlKey = localStorage.getItem('firecrawl_api_key');
-    const geminiKey = localStorage.getItem('gemini_api_key');
-    return !!(firecrawlKey && geminiKey);
+    const openaiKey = localStorage.getItem('openai_api_key'); // Changed from geminiKey
+    return !!(firecrawlKey && openaiKey);
   }
 
   static async scrapeWebsite(url: string): Promise<{ success: boolean; content?: string; blogContent?: string; error?: string }> {
@@ -18,7 +20,6 @@ export class ScrapingService {
     try {
       console.log('Starting scrape for URL:', url);
       
-      // First, scrape the main page
       const mainResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
         method: 'POST',
         headers: {
@@ -54,14 +55,12 @@ export class ScrapingService {
 
       console.log('Main page scraping successful, content length:', mainContent.length);
 
-      // Try to detect and scrape blog section
       let blogContent = '';
       const blogUrls = this.extractBlogUrls(url, mainContent);
       
       if (blogUrls.length > 0) {
         console.log('Found potential blog URLs:', blogUrls);
         
-        // Try to scrape the first blog URL found
         try {
           const blogResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
             method: 'POST',
@@ -107,10 +106,10 @@ export class ScrapingService {
   }
 
   private static extractBlogUrls(baseUrl: string, content: string): string[] {
+    // This function remains unchanged
     const blogUrls: string[] = [];
     const domain = new URL(baseUrl).origin;
     
-    // Common blog patterns
     const blogPatterns = [
       /\[Blog\]\((https?:\/\/[^)]+)\)/gi,
       /\[blog\]\((https?:\/\/[^)]+)\)/gi,
@@ -131,7 +130,6 @@ export class ScrapingService {
       }
     });
     
-    // Fallback: try common blog paths
     if (blogUrls.length === 0) {
       const commonBlogPaths = ['/blog', '/news', '/articles', '/posts'];
       commonBlogPaths.forEach(path => {
@@ -142,15 +140,16 @@ export class ScrapingService {
     return blogUrls;
   }
 
+  // 2. UPDATED: Switched from Gemini to OpenAI
   static async analyzeWithAI(content: string, blogContent?: string): Promise<{ success: boolean; analysis?: AnalysisData; error?: string }> {
-    const apiKey = localStorage.getItem('gemini_api_key');
+    const apiKey = localStorage.getItem('openai_api_key'); // Changed from gemini_api_key
     
     if (!apiKey) {
-      return { success: false, error: 'Gemini API key not found' };
+      return { success: false, error: 'OpenAI API key not found' }; // Changed error message
     }
 
     try {
-      console.log('Starting AI analysis with Gemini...');
+      console.log('Starting AI analysis with OpenAI...'); // Changed log message
       
       const blogSection = blogContent ? `\n\nBLOG SECTION CONTENT:\n${blogContent.substring(0, 3000)}` : '';
       
@@ -175,23 +174,22 @@ Respond ONLY with a valid JSON object in this exact format (no markdown formatti
 
 Make each response comprehensive and informative (2-3 sentences minimum). For blog content, be specific about what type of content they publish and include examples if available.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+      // 3. UPDATED: Changed fetch request to OpenAI's endpoint and payload structure
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
+          model: "gpt-3.5-turbo", // Or another model like "gpt-4"
+          messages: [{
+            role: "user",
+            content: prompt
           }],
-          generationConfig: {
-            temperature: 0.1,
-            topK: 32,
-            topP: 0.95,
-            maxOutputTokens: 2000,
-          },
+          response_format: { type: "json_object" }, // Ensures the response is JSON
+          temperature: 0.1,
+          max_tokens: 2000,
         }),
       });
 
@@ -202,21 +200,17 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
 
       const data = await response.json();
       
-      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-        throw new Error('Invalid response from Gemini API');
+      // 4. UPDATED: Changed how the response is parsed
+      if (!data.choices || !data.choices[0]?.message?.content) {
+        throw new Error('Invalid response from OpenAI API');
       }
 
-      let analysisText = data.candidates[0].content.parts[0].text.trim();
+      let analysisText = data.choices[0].message.content.trim();
       console.log('Raw AI response:', analysisText);
       
-      // Clean up the response - remove markdown code blocks if present
-      analysisText = analysisText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      
       try {
-        // Try to parse as JSON
         const analysis = JSON.parse(analysisText) as AnalysisData;
         
-        // Validate the structure
         if (!analysis.businessAbout || !analysis.coreProducts || !analysis.targetAudience || !analysis.blogContent) {
           throw new Error('Invalid analysis structure');
         }
@@ -225,18 +219,8 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
         return { success: true, analysis };
         
       } catch (parseError) {
-        console.error('JSON parsing error:', parseError);
-        console.log('Cleaned text that failed to parse:', analysisText);
-        
-        // Fallback: create a structured analysis from the text
-        const fallbackAnalysis: AnalysisData = {
-          businessAbout: this.extractInfo(analysisText, ['business', 'company', 'about']) || 'Based on the website content, this appears to be a business or organization, but specific details about their focus could not be clearly determined.',
-          coreProducts: this.extractInfo(analysisText, ['product', 'service', 'offer']) || 'The specific products or services offered by this business could not be clearly identified from the available content.',
-          targetAudience: this.extractInfo(analysisText, ['audience', 'customer', 'target']) || 'The target audience for this business could not be clearly determined from the available information.',
-          blogContent: blogContent ? 'Blog content was found but could not be properly analyzed. Please check the website directly for blog details.' : 'No clear information about blog content or publishing activity was found on the website.',
-        };
-        
-        return { success: true, analysis: fallbackAnalysis };
+        console.error('JSON parsing error:', parseError, 'Raw Text:', analysisText);
+        return { success: false, error: 'Failed to parse AI response.' };
       }
       
     } catch (error) {
@@ -248,6 +232,7 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
     }
   }
 
+  // This fallback function is no longer needed with OpenAI's JSON mode but can be kept as a failsafe
   private static extractInfo(text: string, keywords: string[]): string | null {
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     
@@ -260,7 +245,6 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
       }
     }
     
-    // If no specific keyword match, return the first substantial sentence
     const substantialSentence = sentences.find(s => s.trim().length > 50);
     return substantialSentence ? substantialSentence.trim() + '.' : null;
   }

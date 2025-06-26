@@ -1,3 +1,4 @@
+// src/components/ApiKeyManager.tsx
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -9,143 +10,145 @@ import { Key, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 
 export const ApiKeyManager = () => {
   const [firecrawlKey, setFirecrawlKey] = useState('');
-  const [geminiKey, setGeminiKey] = useState('');
+  const [openaiKey, setOpenaiKey] = useState(''); // Changed from geminiKey
   const [showFirecrawlKey, setShowFirecrawlKey] = useState(false);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false); // Changed from showGeminiKey
   const [isExpanded, setIsExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     const savedFirecrawlKey = localStorage.getItem('firecrawl_api_key');
-    const savedGeminiKey = localStorage.getItem('gemini_api_key');
-    
+    const savedOpenaiKey = localStorage.getItem('openai_api_key'); // Changed from gemini_api_key
+
     if (savedFirecrawlKey) setFirecrawlKey(savedFirecrawlKey);
-    if (savedGeminiKey) setGeminiKey(savedGeminiKey);
-    
+    if (savedOpenaiKey) setOpenaiKey(savedOpenaiKey); // Changed from savedGeminiKey
+
     // Auto-expand if no keys are saved
-    if (!savedFirecrawlKey || !savedGeminiKey) {
+    if (!savedFirecrawlKey || !savedOpenaiKey) { // Changed
       setIsExpanded(true);
     }
   }, []);
 
   const saveApiKeys = () => {
-    if (!firecrawlKey.trim() || !geminiKey.trim()) {
+    if (!firecrawlKey.trim() || !openaiKey.trim()) { // Changed
       toast({
-        title: "Error",
-        description: "Please enter both API keys",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Please enter both API keys',
+        variant: 'destructive'
       });
       return;
     }
 
     localStorage.setItem('firecrawl_api_key', firecrawlKey);
-    localStorage.setItem('gemini_api_key', geminiKey);
-    
+    localStorage.setItem('openai_api_key', openaiKey); // Changed
+
     toast({
-      title: "Success",
-      description: "API keys saved successfully!",
-      duration: 3000,
+      title: 'Success',
+      description: 'API keys saved successfully!',
+      duration: 3000
     });
-    
+
     setIsExpanded(false);
   };
 
-  const hasValidKeys = firecrawlKey.trim() && geminiKey.trim();
+  const hasValidKeys = firecrawlKey.trim() && openaiKey.trim(); // Changed
 
   return (
-    <Card className="bg-white/80 backdrop-blur-sm shadow-lg border-white/20">
-      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Key className="w-5 h-5 text-purple-600" />
-            <CardTitle className="text-lg">API Configuration</CardTitle>
+    <Card className='bg-white/80 backdrop-blur-sm shadow-lg border-white/20'>
+      <CardHeader className='cursor-pointer' onClick={() => setIsExpanded(!isExpanded)}>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <Key className='w-5 h-5 text-purple-600' />
+            <CardTitle className='text-lg'>API Configuration</CardTitle>
           </div>
-          <div className="flex items-center gap-2">
-            {hasValidKeys ? (
-              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                <CheckCircle className="w-3 h-3 mr-1" />
-                Configured
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
-                <XCircle className="w-3 h-3 mr-1" />
-                Required
-              </Badge>
-            )}
-            <Button variant="ghost" size="sm">
+          <div className='flex items-center gap-2'>
+            {hasValidKeys
+              ? (
+                <Badge variant='outline' className='bg-green-100 text-green-800 border-green-300'>
+                  <CheckCircle className='w-3 h-3 mr-1' />
+                  Configured
+                </Badge>
+                )
+              : (
+                <Badge variant='outline' className='bg-red-100 text-red-800 border-red-300'>
+                  <XCircle className='w-3 h-3 mr-1' />
+                  Required
+                </Badge>
+                )}
+            <Button variant='ghost' size='sm'>
               {isExpanded ? 'Hide' : 'Show'}
             </Button>
           </div>
         </div>
       </CardHeader>
-      
+
       {isExpanded && (
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
+        <CardContent className='space-y-4 pt-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium text-gray-700'>
                 Firecrawl API Key
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <Input
-                  type={showFirecrawlKey ? "text" : "password"}
+                  type={showFirecrawlKey ? 'text' : 'password'}
                   value={firecrawlKey}
                   onChange={(e) => setFirecrawlKey(e.target.value)}
-                  placeholder="fc-..."
-                  className="pr-10"
+                  placeholder='fc-...'
+                  className='pr-10'
                 />
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  className='absolute right-0 top-0 h-full px-3'
                   onClick={() => setShowFirecrawlKey(!showFirecrawlKey)}
                 >
-                  {showFirecrawlKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showFirecrawlKey ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className='text-xs text-gray-500'>
                 Get your key from{' '}
-                <a href="https://firecrawl.dev" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                <a href='https://firecrawl.dev' target='_blank' rel='noopener noreferrer' className='text-purple-600 hover:underline'>
                   firecrawl.dev
                 </a>
               </p>
             </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Google Gemini API Key
+
+            <div className='space-y-2'>
+              <label className='text-sm font-medium text-gray-700'>
+                OpenAI API Key
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <Input
-                  type={showGeminiKey ? "text" : "password"}
-                  value={geminiKey}
-                  onChange={(e) => setGeminiKey(e.target.value)}
-                  placeholder="AIza..."
-                  className="pr-10"
+                  type={showOpenaiKey ? 'text' : 'password'}
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
+                  placeholder='sk-...'
+                  className='pr-10'
                 />
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowGeminiKey(!showGeminiKey)}
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  className='absolute right-0 top-0 h-full px-3'
+                  onClick={() => setShowOpenaiKey(!showOpenaiKey)}
                 >
-                  {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showOpenaiKey ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500">
-                Get your key from{' '}
-                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
-                  Google AI Studio
+              <p className='text-xs text-gray-500'>
+                Get your key from the{' '}
+                <a href='https://platform.openai.com/account/api-keys' target='_blank' rel='noopener noreferrer' className='text-purple-600 hover:underline'>
+                  OpenAI Platform
                 </a>
               </p>
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             onClick={saveApiKeys}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            className='w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
           >
             Save API Keys
           </Button>
