@@ -1,11 +1,10 @@
-
 import { AnalysisData } from '@/pages/Index';
 
 export class ScrapingService {
   static validateApiKeys(): boolean {
     const firecrawlKey = localStorage.getItem('firecrawl_api_key');
-    const openaiKey = localStorage.getItem('openai_api_key');
-    return !!(firecrawlKey && openaiKey);
+    const geminiKey = localStorage.getItem('gemini_api_key');
+    return !!(firecrawlKey && geminiKey);
   }
 
   static async scrapeWebsite(url: string): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -63,14 +62,14 @@ export class ScrapingService {
   }
 
   static async analyzeWithAI(content: string): Promise<{ success: boolean; analysis?: AnalysisData; error?: string }> {
-    const apiKey = localStorage.getItem('openai_api_key');
+    const apiKey = localStorage.getItem('gemini_api_key');
     
     if (!apiKey) {
-      return { success: false, error: 'OpenAI API key not found' };
+      return { success: false, error: 'Gemini API key not found' };
     }
 
     try {
-      console.log('Starting AI analysis...');
+      console.log('Starting AI analysis with Gemini...');
       
       const prompt = `
 Analyze the following website content and provide detailed answers to these 4 questions in JSON format:
@@ -93,26 +92,23 @@ Please respond with a JSON object in this exact format:
 
 Make sure each response is comprehensive and informative (2-3 sentences minimum).`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a business analyst expert. Analyze website content and provide detailed, professional insights about businesses.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 1500,
-          temperature: 0.3,
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1500,
+          },
         }),
       });
 
@@ -123,11 +119,11 @@ Make sure each response is comprehensive and informative (2-3 sentences minimum)
 
       const data = await response.json();
       
-      if (!data.choices || !data.choices[0]?.message?.content) {
-        throw new Error('Invalid response from OpenAI API');
+      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+        throw new Error('Invalid response from Gemini API');
       }
 
-      const analysisText = data.choices[0].message.content.trim();
+      const analysisText = data.candidates[0].content.parts[0].text.trim();
       
       try {
         // Try to parse as JSON
