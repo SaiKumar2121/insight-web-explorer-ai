@@ -1,4 +1,3 @@
-
 import { AnalysisData } from '@/pages/Index';
 
 export class ScrapingService {
@@ -18,8 +17,8 @@ export class ScrapingService {
     try {
       console.log('Starting scrape for URL:', url);
       
-      // ScraperAPI endpoint
-      const scraperUrl = `http://api.scraperapi.com?api_key=${apiKey}&url=${encodeURIComponent(url)}&render=true&format=text`;
+      // Use HTTPS for ScraperAPI endpoint
+      const scraperUrl = `https://api.scraperapi.com/v1?api_key=${apiKey}&url=${encodeURIComponent(url)}&render=true&format=text`;
       
       const mainResponse = await fetch(scraperUrl, {
         method: 'GET',
@@ -29,7 +28,8 @@ export class ScrapingService {
       });
 
       if (!mainResponse.ok) {
-        throw new Error(`HTTP ${mainResponse.status}: ${mainResponse.statusText}`);
+        const errorText = await mainResponse.text().catch(() => 'Unknown error');
+        throw new Error(`HTTP ${mainResponse.status}: ${errorText}`);
       }
 
       const mainContent = await mainResponse.text();
@@ -49,7 +49,7 @@ export class ScrapingService {
         
         // Try to scrape the first blog URL found
         try {
-          const blogScraperUrl = `http://api.scraperapi.com?api_key=${apiKey}&url=${encodeURIComponent(blogUrls[0])}&render=true&format=text`;
+          const blogScraperUrl = `https://api.scraperapi.com/v1?api_key=${apiKey}&url=${encodeURIComponent(blogUrls[0])}&render=true&format=text`;
           
           const blogResponse = await fetch(blogScraperUrl, {
             method: 'GET',
@@ -79,6 +79,15 @@ export class ScrapingService {
       
     } catch (error) {
       console.error('Scraping error:', error);
+      
+      // Check if it's a CORS or network error
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        return { 
+          success: false, 
+          error: 'Network error: Unable to connect to ScraperAPI. This might be due to browser security restrictions. Please check your API key and try again.' 
+        };
+      }
+      
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to scrape website' 
@@ -156,7 +165,7 @@ Make each response comprehensive and informative (2-3 sentences minimum). For bl
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'user',
